@@ -1,0 +1,54 @@
+name: ugc-pipeline
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # tick: Telegram, builds, publishing
+    - cron: "30 3 * * 1"     # weekly: Monday 9:00 AM IST
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "tick | weekly | ideate"
+        default: "tick"
+        required: true
+
+concurrency:
+  group: ugc-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+      - name: Run pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          DRIVE_INBOX_FOLDER_ID: ${{ secrets.DRIVE_INBOX_FOLDER_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          VOICE_MODE: ${{ vars.VOICE_MODE }}
+          TTS_VOICE: ${{ vars.TTS_VOICE }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          TASK_INPUT: ${{ inputs.task }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then TASK="$TASK_INPUT"
+          elif [ "$SCHEDULE" = "30 3 * * 1" ]; then TASK="weekly"
+          else TASK="tick"; fi
+          python main.py "$TASK"
+
